@@ -12,6 +12,7 @@ const { completeStage } = require('../processStageTracking/processStageTracking.
 const { startNextAssignmentPendingStage, syncAssignmentPendingStages } = require('../processStageTracking/departmentAssignmentStage.service');
 const { getServiceDepartment, normalizeDepartment } = require('../../common/utils/department.util');
 const jobCardService = require('../jobCards/jobCard.service');
+const { updateAssignedAdvisorOnJobCard } = require('../advisorAssignment/advisorAssignment.service');
 
 const JOB_CARD_CREATED_STATUS_CODES = ['JOB_CARD_CREATED', 'CREATED'];
 const JOB_CARD_APPROVED_STATUS_CODES = ['APPROVED'];
@@ -519,6 +520,15 @@ const pendingQueueSelect = {
   gateEntryNo: true,
   entryType: true,
   entryTime: true,
+  assignedAdvisorId: true,
+  assignedAdvisor: {
+    select: {
+      id: true,
+      fullName: true,
+      emailId: true,
+      mobileNo: true
+    }
+  },
   customer: {
     select: {
       id: true,
@@ -583,6 +593,15 @@ const toQueueEntryResponse = (entry) => ({
   entryType: String(entry.entryType || '').toLowerCase(),
   entryTime: entry.entryTime,
   waitingMinutes: getElapsedMinutes(entry.entryTime),
+  assignedAdvisorId: entry.assignedAdvisorId || null,
+  assignedAdvisor: entry.assignedAdvisor
+    ? {
+      id: entry.assignedAdvisor.id,
+      fullName: entry.assignedAdvisor.fullName,
+      email: entry.assignedAdvisor.emailId,
+      mobile: entry.assignedAdvisor.mobileNo
+    }
+    : null,
   customer: entry.customer
     ? {
       id: entry.customer.id,
@@ -1347,6 +1366,14 @@ const buildQueueWhere = (query, user) => {
 
   if (query.entryType && String(query.entryType).trim().toLowerCase() !== 'all') {
     where.entryType = String(query.entryType).trim().toUpperCase();
+  }
+
+  if (query.assignedAdvisorId) {
+    where.assignedAdvisorId = Number(query.assignedAdvisorId);
+  } else if (query.scope === 'my' && user && user.userId) {
+    where.assignedAdvisorId = Number(user.userId);
+  } else if (query.scope === 'unassigned') {
+    where.assignedAdvisorId = null;
   }
 
   const search = String(query.search || '').trim();
@@ -2151,6 +2178,12 @@ const createFromGateEntry = async (payload, user, files = []) => {
         }
       });
     }
+
+    await updateAssignedAdvisorOnJobCard({
+      gateEntryId: gateEntry.id,
+      createdByUserId: user.userId,
+      tx
+    });
 
     await createAudit(tx, {
       tableName: 'job_cards',

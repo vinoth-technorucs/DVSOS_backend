@@ -111,8 +111,8 @@ const validateUserPayload = ({ requirePassword = false } = {}) => {
 const validatePasswordPayload = (req, res, next) => {
   const { password } = req.body || {};
 
-  if (!isNonEmptyString(password)) {
-    return sendValidationError(res, 'password is required');
+  if (!isNonEmptyString(password) || password.trim().length < 6) {
+    return sendValidationError(res, 'password is required and must be at least 6 characters long');
   }
 
   return next();

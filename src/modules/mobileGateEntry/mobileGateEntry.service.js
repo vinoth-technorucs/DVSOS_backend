@@ -11,6 +11,7 @@ const {
   resolveStatusIdFromCodes
 } = require('../../common/utils/status.util');
 const { startStage } = require('../processStageTracking/processStageTracking.service');
+const { assignNextAdvisor, notifyAssignment } = require('../advisorAssignment/advisorAssignment.service');
 
 const ENTRY_STATUS_CODES = ['ACTIVE', 'OPEN', 'ENTERED', 'ENTRY_CREATED'];
 const EXIT_STATUS_CODES = ['EXITED', 'CLOSED'];
@@ -248,6 +249,15 @@ const gateEntrySelect = {
   entryTime: true,
   exitTime: true,
   remarks: true,
+  assignedAdvisorId: true,
+  assignedAdvisor: {
+    select: {
+      id: true,
+      fullName: true,
+      emailId: true,
+      mobileNo: true
+    }
+  },
   status: {
     select: {
       id: true,
@@ -306,6 +316,13 @@ const toGateEntryResponse = (entry) => {
     entryTime: entry.entryTime,
     exitTime: entry.exitTime,
     remarks: entry.remarks,
+    assignedAdvisorId: entry.assignedAdvisorId || null,
+    assignedAdvisor: entry.assignedAdvisor ? {
+      id: entry.assignedAdvisor.id,
+      fullName: entry.assignedAdvisor.fullName,
+      email: entry.assignedAdvisor.emailId,
+      mobile: entry.assignedAdvisor.mobileNo
+    } : null,
     status: entry.status
       ? {
         id: entry.status.id,
@@ -549,6 +566,8 @@ const createGateEntry = async (payload, user) => {
     const entryStatusId = await resolveStatusIdFromCodes(tx, STATUS_MODULE_CODES.GATE_ENTRY, ENTRY_STATUS_CODES);
     const gateEntryNo = await generateGateEntryNo({ tx, locationCode: location.locationCode });
     const gateEntrySlug = await createUniqueSlug(tx, 'gateEntry', gateEntryNo);
+    const assignedAdvisor = await assignNextAdvisor({ locationId, tx });
+
     const gateEntry = await tx.gateEntry.create({
       data: {
         locationId,
@@ -560,6 +579,7 @@ const createGateEntry = async (payload, user) => {
         vehicleId: vehicle.id,
         entryTime: new Date(),
         enteredById: user.userId || null,
+        assignedAdvisorId: assignedAdvisor ? assignedAdvisor.id : null,
         remarks: payload.remarks ? String(payload.remarks).trim() : null,
         createdById: user.userId || null
       },
@@ -610,9 +630,19 @@ const createGateEntry = async (payload, user) => {
       isNewCustomer,
       isNewVehicle,
       nextAction: 'WAITING_FOR_CRM',
-      isCreated: true
+      isCreated: true,
+      assignedAdvisor
     };
   }, { maxWait: 20000, timeout: 50000 });
+
+  notifyAssignment({
+    advisor: result.assignedAdvisor,
+    gateEntry: { id: result.gateEntryId, gateEntryNo: result.gateEntryNo },
+    registrationNumber: result.normalizedRegistrationNumber,
+    locationId
+  }).catch((err) => console.warn('Failed to send assignment notification:', err?.message));
+
+  return result;
 };
 
 const submitExit = async (id, payload, user) => {
@@ -1111,6 +1141,14 @@ const pendingCrmEntries = async (query, user) => {
     where.vehicle = {
       registrationNo: normalizeRegistrationOrThrow(query.registrationNumber)
     };
+  }
+
+  if (query.assignedAdvisorId) {
+    where.assignedAdvisorId = Number(query.assignedAdvisorId);
+  } else if (query.scope === 'my' && user && user.userId) {
+    where.assignedAdvisorId = Number(user.userId);
+  } else if (query.scope === 'unassigned') {
+    where.assignedAdvisorId = null;
   }
 
   const queryLocationId = parsePositiveInt(query.locationId, undefined);

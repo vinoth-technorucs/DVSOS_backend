@@ -19,6 +19,8 @@ const ROLE_ALIASES = {
   crm_user: 'crm_team',
   crm_executive: 'crm_team',
   crm_staff: 'crm_team',
+  advisor: 'crm_team',
+  service_advisor: 'crm_team',
   floor: 'floor_supervisor',
   mechanical_supervisor: 'floor_supervisor'
 };
@@ -28,6 +30,8 @@ const ROLE_MODULES = {
   gate_security: 'gate-security',
   gatekeeper: 'gate-security',
   crm_team: 'crm-team',
+  advisor: 'crm-team',
+  service_advisor: 'crm-team',
   floor_supervisor: 'floor-supervisor',
   mechanical: 'floor-supervisor',
   mechanic: 'floor-supervisor',

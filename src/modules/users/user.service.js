@@ -7,7 +7,6 @@ const { generateSlug, generateUniqueSlug } = require('../../common/utils/slug.ut
 const { generateRandomPassword, sendWelcomeEmail } = require('../../utils/welcomeEmailHelper');
 const { createAuditLog, buildChangeDetails } = require('../../common/utils/audit.util');
 
-const DEFAULT_USER_PASSWORD = 'Admin@123';
 const ADMIN_ROLE_SLUGS = new Set(['admin', 'super_admin']);
 const MANAGING_DIRECTOR_ROLE = 'managing_director';
 const ADMIN_MODULE = 'admin';
@@ -18,6 +17,7 @@ const MD_ALLOWED_ROLE_SLUGS = new Set([
   'gate_security',
   'gatekeeper',
   'crm_team',
+  'advisor',
   'floor_supervisor',
   'body_shop_supervisor',
   'manager'
@@ -27,6 +27,7 @@ const LOCATION_REQUIRED_ROLE_SLUGS = new Set([
   'gate_security',
   'gatekeeper',
   'crm_team',
+  'advisor',
   'floor_supervisor',
   'body_shop_supervisor',
   'manager'
@@ -379,10 +380,10 @@ const createUser = async ({ fullName, email, mobile, employeeCode, roleId, passw
   const parsedRoleId = Number(roleId);
 
 
-  const initialPassword = typeof password === 'string' && password.trim() ? password : DEFAULT_USER_PASSWORD;
-
-  // const isRandomPasswordGenerated = !(typeof password === 'string' && password.trim());
-  // const initialPassword = isRandomPasswordGenerated ? generateRandomPassword(8) : password.trim();
+  if (!password || typeof password !== 'string' || password.trim().length < 6) {
+    throw createHttpError(400, 'Password is required and must be at least 6 characters long');
+  }
+  const initialPassword = password.trim();
 
   const role = await ensureRoleExists(parsedRoleId);
   const normalizedFullName = fullName.trim();
@@ -451,18 +452,10 @@ const createUser = async ({ fullName, email, mobile, employeeCode, roleId, passw
     return newUser;
   }, { maxWait: 20000, timeout: 50000 });
 
-  // if (isRandomPasswordGenerated && normalizedEmail) {
-  //   try {
-  //     await sendWelcomeEmail(normalizedEmail, initialPassword);
-  //   } catch (error) {
-  //     console.error('Failed to send welcome email:', error);
-  //   }
-  // }
-
   return toPublicUser(user);
 };
 
-const updateUser = async (id, { fullName, email, mobile, employeeCode, roleId, dob, licenceNumber, emergencyContact, gender, address, locationId }, actor) => {
+const updateUser = async (id, { fullName, email, mobile, employeeCode, roleId, password, dob, licenceNumber, emergencyContact, gender, address, locationId }, actor) => {
   const parsedRoleId = Number(roleId);
   const normalizedEmail = email.trim();
 
@@ -504,6 +497,13 @@ const updateUser = async (id, { fullName, email, mobile, employeeCode, roleId, d
     gender: gender ? gender.trim() : null,
     address: address ? address.trim() : null
   };
+
+  if (typeof password === 'string' && password.trim().length > 0) {
+    if (password.trim().length < 6) {
+      throw createHttpError(400, 'Password must be at least 6 characters long');
+    }
+    data.passwordHash = await hashPassword(password.trim());
+  }
 
   const user = await prisma.$transaction(async (tx) => {
     const updatedUser = await userRepository.updateUser(userId, data, tx);
@@ -751,12 +751,35 @@ const updateUserStatus = async (id, { isActive }, actor) => {
 };
 
 const resetUserPassword = async (id, { password }, actor) => {
+  if (!password || typeof password !== 'string' || password.trim().length < 6) {
+    throw createHttpError(400, 'Password is required and must be at least 6 characters long');
+  }
+
   const currentUser = await resolveUserByIdentifier(id);
   const userId = currentUser.id;
   assertMdCanAccessUser(actor, currentUser);
 
-  const passwordHash = await hashPassword(password);
-  const user = await userRepository.updateUser(userId, { passwordHash });
+  const passwordHash = await hashPassword(password.trim());
+  const user = await prisma.$transaction(async (tx) => {
+    const updatedUser = await userRepository.updateUser(userId, { passwordHash }, tx);
+
+    await createAuditLog(tx, {
+      moduleCode: 'user-management',
+      moduleName: 'User Management',
+      tableName: 'users',
+      recordId: updatedUser.id,
+      actionType: 'UPDATE',
+      performedByUserId: actor.userId,
+      recordName: updatedUser.fullName,
+      comments: 'User password reset by admin',
+      locationId: updatedUser.locationId,
+      details: [
+        { fieldName: 'password', oldValue: null, newValue: '[REDACTED]', dataType: 'string' }
+      ]
+    });
+
+    return updatedUser;
+  });
 
   return toPublicUser(user);
 };

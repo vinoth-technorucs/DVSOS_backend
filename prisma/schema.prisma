@@ -100,6 +100,7 @@ model Location {
   users                 User[]
   vehicles              Vehicle[]
   workAssignments       WorkAssignment[]
+  advisorAssignmentSequence AdvisorAssignmentSequence?
 
   @@map("locations")
 }
@@ -262,6 +263,7 @@ model User {
   createdGateEntries             GateEntry[]               @relation("GateEntryCreatedBy")
   enteredGateEntries             GateEntry[]               @relation("GateEntryEnteredBy")
   modifiedGateEntries            GateEntry[]               @relation("GateEntryModifiedBy")
+  assignedGateEntries            GateEntry[]               @relation("GateEntryAssignedAdvisor")
   createdJobCardApprovals        JobCardApproval[]         @relation("JobCardApprovalCreatedBy")
   modifiedJobCardApprovals       JobCardApproval[]         @relation("JobCardApprovalModifiedBy")
   createdJobCardServiceHistories JobCardServiceHistory[]
@@ -533,12 +535,14 @@ model GateEntry {
   entryTime             DateTime               @default(dbgenerated("sysutcdatetime()")) @map("entry_time")
   exitTime              DateTime?              @map("exit_time")
   enteredById           Int?                   @map("entered_by")
+  assignedAdvisorId     Int?                   @map("assigned_advisor_id")
   remarks               String?                @db.NVarChar(500)
   createdById           Int?                   @map("created_by")
   modifiedById          Int?                   @map("modified_by")
   createdAt             DateTime               @default(dbgenerated("sysutcdatetime()")) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
   createdBy             User?                  @relation("GateEntryCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignedAdvisor       User?                  @relation("GateEntryAssignedAdvisor", fields: [assignedAdvisorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer              Customer               @relation(fields: [customerId], references: [id], onUpdate: NoAction)
   enteredBy             User?                  @relation("GateEntryEnteredBy", fields: [enteredById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   location              Location               @relation(fields: [locationId], references: [id], onUpdate: NoAction)
@@ -555,6 +559,7 @@ model GateEntry {
   @@index([customerId])
   @@index([vehicleId])
   @@index([enteredById])
+  @@index([assignedAdvisorId])
   @@index([entryTime])
   @@map("gate_entries")
 }
@@ -860,6 +865,7 @@ model JobCardChat {
   unreadCount     Int        @default(0) @map("unread_count")
   lastMessageText String?    @map("last_message_text") @db.NVarChar(500)
   lastSenderType  String?    @map("last_sender_type") @db.NVarChar(20)
+  lastMessageStatus String?  @map("last_message_status") @db.NVarChar(50)
   lastMessageAt   DateTime   @default(dbgenerated("sysutcdatetime()")) @map("last_message_at")
   messagesJson    String     @default("[]") @map("messages_json") @db.NVarChar(Max)
   createdAt       DateTime   @default(dbgenerated("sysutcdatetime()")) @map("created_at")
@@ -870,5 +876,15 @@ model JobCardChat {
   @@index([unreadCount])
   @@index([lastMessageAt])
   @@map("job_card_chats")
+}
+
+model AdvisorAssignmentSequence {
+  id            Int       @id @default(autoincrement())
+  locationId    Int       @unique @map("location_id")
+  lastAdvisorId Int       @map("last_advisor_id")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  location      Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("advisor_assignment_sequences")
 }
 

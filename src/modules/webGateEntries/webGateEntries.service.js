@@ -48,6 +48,14 @@ const list = async (query, user) => {
     };
   }
 
+  if (query.assignedAdvisorId) {
+    where.assignedAdvisorId = Number(query.assignedAdvisorId);
+  } else if (query.scope === 'my' && user?.userId) {
+    where.assignedAdvisorId = Number(user.userId);
+  } else if (query.scope === 'unassigned') {
+    where.assignedAdvisorId = null;
+  }
+
   const isExport = query.export === 'true';
 
   const [entries, total] = await Promise.all([
@@ -63,7 +71,14 @@ const list = async (query, user) => {
         },
         customer: true,
         status: true,
-        enteredBy: true
+        enteredBy: true,
+        assignedAdvisor: {
+          select: {
+            id: true,
+            fullName: true,
+            emailId: true
+          }
+        }
       }
     }),
     prisma.gateEntry.count({ where })
@@ -79,7 +94,12 @@ const list = async (query, user) => {
     serviceType: entry.entryType,
     status: entry.status?.statusCode || 'PENDING',
     entryTime: entry.entryTime,
-    entryBy: entry.enteredBy?.fullName || 'System'
+    entryBy: entry.enteredBy?.fullName || 'System',
+    assignedAdvisor: entry.assignedAdvisor ? {
+      id: entry.assignedAdvisor.id,
+      fullName: entry.assignedAdvisor.fullName
+    } : null,
+    assignedAdvisorName: entry.assignedAdvisor?.fullName || 'Unassigned'
   }));
 
   return {
