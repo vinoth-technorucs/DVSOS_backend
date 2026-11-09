@@ -87,14 +87,15 @@ const hasAnyModule = (user, modules) => {
 };
 
 const isLocationScopedViewer = (user) => {
-  return hasAnyModule(user, ['crm-team', 'manager', 'managing-director'])
-    || ['crm_team', 'crm', 'crm_user', 'crm_executive', 'crm_staff', 'manager', 'managing_director']
+  return hasAnyModule(user, ['crm-team', 'advisor', 'manager', 'managing-director'])
+    || ['crm_team', 'advisor', 'crm', 'crm_user', 'crm_executive', 'crm_staff', 'manager', 'managing_director']
       .includes(normalizeRoleSlug(user && user.roleSlug));
 };
 
 const isCrmViewer = (user) => {
   return hasModule(user, 'crm-team')
-    || ['crm_team', 'crm', 'crm_user', 'crm_executive', 'crm_staff'].includes(normalizeRoleSlug(user && user.roleSlug));
+    || hasModule(user, 'advisor')
+    || ['crm_team', 'advisor', 'crm', 'crm_user', 'crm_executive', 'crm_staff'].includes(normalizeRoleSlug(user && user.roleSlug));
 };
 
 const resolveLocationFilter = (query, user) => {

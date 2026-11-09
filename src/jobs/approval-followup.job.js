@@ -11,7 +11,7 @@ async function resolveCrmRecipients(locationId, jobCard) {
   const crmUsers = await prisma.user.findMany({
     where: {
       locationId,
-      role: { slug: { in: ['crm_team', 'crm-team'] } },
+      role: { slug: { in: ['crm_team', 'crm-team', 'advisor', 'service-advisor', 'service_advisor'] } },
       isActive: true
     },
     select: { id: true }

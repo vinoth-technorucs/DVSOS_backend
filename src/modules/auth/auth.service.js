@@ -15,6 +15,7 @@ const LOCATION_REQUIRED_ROLE_SLUGS = new Set([
   'gate_security',
   'gatekeeper',
   'crm_team',
+  'advisor',
   'floor_supervisor',
   'body_shop_supervisor',
   'manager'
@@ -238,8 +239,9 @@ const login = async ({ emailId, password }, platform = 'web') => {
     if (!hasGateModule) {
       throw createHttpError(403, 'This account is not permitted to access the Gate Security application.');
     }
-  } else if (platform === 'mobile-crm') {
-    const hasCrmModule = userModules.some(mod => platformModules['mobile-crm'].includes(mod));
+  } else if (platform === 'mobile-crm' || platform === 'mobile-advisor') {
+    const crmPlatforms = [...(platformModules['mobile-crm'] || []), ...(platformModules['mobile-advisor'] || [])];
+    const hasCrmModule = userModules.some(mod => crmPlatforms.includes(mod) || ['crm-team', 'advisor'].includes(mod));
     if (!hasCrmModule) {
       throw createHttpError(403, 'This account is not permitted to access the CRM application.');
     }

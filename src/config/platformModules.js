@@ -9,6 +9,7 @@ module.exports = {
   mobile: [
     'gate-security',
     'crm-team',
+    'advisor',
     'manager',
     'floor-supervisor'
   ],
@@ -16,7 +17,12 @@ module.exports = {
     'gate-security'
   ],
   'mobile-crm': [
-    'crm-team'
+    'crm-team',
+    'advisor'
+  ],
+  'mobile-advisor': [
+    'crm-team',
+    'advisor'
   ],
   'mobile-manager': [
     'manager'

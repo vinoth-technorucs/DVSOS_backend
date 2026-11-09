@@ -8,6 +8,15 @@ const ROLE_DEFAULT_PERMISSIONS = {
       canDelete: true
     }
   },
+  advisor: {
+    module: 'crm-team',
+    permissions: {
+      canRead: true,
+      canCreate: true,
+      canUpdate: true,
+      canDelete: true
+    }
+  },
   'gate-security': {
     module: 'gate-security',
     permissions: {

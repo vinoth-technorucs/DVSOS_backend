@@ -154,7 +154,7 @@ const saveRoleMenuPermissions = async (roleId, permissionPayload, actorUserId) =
   }
 
   const moduleName = Array.from(modules)[0];
-  const mobileModules = ['crm-team', 'gate-security'];
+  const mobileModules = ['crm-team', 'gate-security', 'advisor'];
   const isMobile = mobileModules.includes(moduleName);
 
   if (!isMobile) {

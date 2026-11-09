@@ -142,8 +142,8 @@ const isGateSecurity = (user) => {
 };
 
 const isLocationScopedViewer = (user) => {
-  return hasAnyModule(user, ['gate-security', 'crm-team', 'manager', 'managing-director'])
-    || ['gate_security', 'gatekeeper', 'crm_team', 'crm', 'crm_user', 'crm_executive', 'crm_staff', 'manager', 'managing_director']
+  return hasAnyModule(user, ['gate-security', 'crm-team', 'advisor', 'manager', 'managing-director'])
+    || ['gate_security', 'gatekeeper', 'crm_team', 'advisor', 'crm', 'crm_user', 'crm_executive', 'crm_staff', 'manager', 'managing_director']
       .includes(normalizeRoleSlug(user && user.roleSlug));
 };
 
