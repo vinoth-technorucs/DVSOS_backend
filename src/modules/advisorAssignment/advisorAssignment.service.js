@@ -56,8 +56,32 @@ const assignNextAdvisor = async ({ locationId, tx }) => {
     return null;
   }
 
-  if (eligibleAdvisors.length === 1) {
-    const singleAdvisor = eligibleAdvisors[0];
+  const advisorsWithWorkload = await Promise.all(
+    eligibleAdvisors.map(async (advisor) => {
+      const pendingCount = await client.gateEntry.count({
+        where: {
+          locationId: numLocationId,
+          assignedAdvisorId: advisor.id,
+          exitTime: null,
+          jobCards: {
+            none: {}
+          }
+        }
+      });
+      return {
+        advisor,
+        pendingCount
+      };
+    })
+  );
+
+  const minPendingCount = Math.min(...advisorsWithWorkload.map((a) => a.pendingCount));
+  const candidateAdvisors = advisorsWithWorkload
+    .filter((a) => a.pendingCount === minPendingCount)
+    .map((a) => a.advisor);
+
+  if (candidateAdvisors.length === 1) {
+    const singleAdvisor = candidateAdvisors[0];
     await client.advisorAssignmentSequence.upsert({
       where: { locationId: numLocationId },
       create: { locationId: numLocationId, lastAdvisorId: singleAdvisor.id },
@@ -66,22 +90,20 @@ const assignNextAdvisor = async ({ locationId, tx }) => {
     return singleAdvisor;
   }
 
-  // Look up last assigned advisor from sequence table
   const sequence = await client.advisorAssignmentSequence.findUnique({
     where: { locationId: numLocationId }
   });
 
   let nextAdvisor;
   if (!sequence) {
-    nextAdvisor = eligibleAdvisors[0];
+    nextAdvisor = candidateAdvisors[0];
   } else {
-    const lastIndex = eligibleAdvisors.findIndex((a) => a.id === sequence.lastAdvisorId);
+    const lastIndex = candidateAdvisors.findIndex((a) => a.id === sequence.lastAdvisorId);
     if (lastIndex === -1) {
-      // Last advisor is not logged in today or not found, start with first
-      nextAdvisor = eligibleAdvisors[0];
+      nextAdvisor = candidateAdvisors[0];
     } else {
-      const nextIndex = (lastIndex + 1) % eligibleAdvisors.length;
-      nextAdvisor = eligibleAdvisors[nextIndex];
+      const nextIndex = (lastIndex + 1) % candidateAdvisors.length;
+      nextAdvisor = candidateAdvisors[nextIndex];
     }
   }
 

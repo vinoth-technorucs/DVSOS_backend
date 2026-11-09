@@ -95,7 +95,7 @@ const isLocationScopedViewer = (user) => {
 const isCrmViewer = (user) => {
   return hasModule(user, 'crm-team')
     || hasModule(user, 'advisor')
-    || ['crm_team', 'advisor', 'crm', 'crm_user', 'crm_executive', 'crm_staff'].includes(normalizeRoleSlug(user && user.roleSlug));
+    || ['crm_team', 'advisor', 'service_advisor', 'service-advisor', 'crm', 'crm_user', 'crm_executive', 'crm_staff'].includes(normalizeRoleSlug(user && user.roleSlug));
 };
 
 const resolveLocationFilter = (query, user) => {
@@ -1375,6 +1375,8 @@ const buildQueueWhere = (query, user) => {
     where.assignedAdvisorId = Number(user.userId);
   } else if (query.scope === 'unassigned') {
     where.assignedAdvisorId = null;
+  } else if (isCrmViewer(user) && user && user.userId && query.scope !== 'all') {
+    where.assignedAdvisorId = Number(user.userId);
   }
 
   const search = String(query.search || '').trim();
