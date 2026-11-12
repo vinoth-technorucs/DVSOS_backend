@@ -655,14 +655,15 @@ const syncAssignmentsForServiceStatus = async (tx, service, serviceStatus, user)
 };
 
 const deriveJobCardStatus = async (tx, jobCard) => {
-  if (areAllJobCardServicesCompleted(jobCard)) {
-    return resolveRequiredStatus(
-      tx,
-      STATUS_MODULE_CODES.JOB_CARD_STATUS,
-      READY_FOR_DELIVERY_STATUS_CODES,
-      'Ready for delivery job card'
-    );
+  const currentStatusCode = getStatusCode(jobCard.currentStatus);
+  if (currentStatusCode === 'PAYMENT_DONE' || currentStatusCode === 'DELIVERED') {
+    return jobCard.currentStatus;
   }
+
+  if (areAllJobCardServicesCompleted(jobCard)) {
+    return resolveOrEnsureStatus(tx, STATUS_MODULE_CODES.JOB_CARD_STATUS, 'PAYMENT_PENDING', 'Awaiting Payment', 83);
+  }
+
 
   let firstPostponed = null;
   let activeDepartment = null;

@@ -38,6 +38,8 @@ const statusModules = [
       { statusCode: 'WATER_WASH_IN_PROGRESS', statusName: 'Water Wash In Progress', sortOrder: 31 },
       { statusCode: 'WATER_WASH_COMPLETED', statusName: 'Water Wash Completed', sortOrder: 32 },
       { statusCode: 'READY_FOR_DELIVERY', statusName: 'Ready For Delivery', sortOrder: 90 },
+      { statusCode: 'PAYMENT_PENDING', statusName: 'Awaiting Payment', sortOrder: 91 },
+      { statusCode: 'PAYMENT_DONE', statusName: 'Payment Completed', sortOrder: 92 },
       { statusCode: 'DELIVERED', statusName: 'Delivered', sortOrder: 100, isFinal: true }
     ]
   },

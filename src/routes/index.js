@@ -42,6 +42,7 @@ const { brandRoutes, crmBrandRoutes } = require('../modules/brands/brand.routes'
 const stageTimeLimitRoutes = require('../modules/stageTimeLimits/stageTimeLimit.routes');
 const stageTimeLimitDropdownRoutes = require('../modules/stageTimeLimits/stageTimeLimitDropdown.routes');
 const { bayRoutes, crmBayRoutes } = require('../modules/bays/bay.routes');
+const cashierRoutes = require('../modules/cashier/cashier.routes');
 
 router.use('/', stageTimeLimitDropdownRoutes);
 router.use('/auth', authRoutes);
@@ -87,6 +88,7 @@ router.use('/bays', bayRoutes);
 router.use('/crm/bays', crmBayRoutes);
 router.use('/storage', storageRoutes);
 router.use('/chat', chatRoutes);
+router.use('/cashier', cashierRoutes);
 
 // Kiosk routes
 const { validateKioskKey } = require('../common/middleware/kioskAuth.middleware');

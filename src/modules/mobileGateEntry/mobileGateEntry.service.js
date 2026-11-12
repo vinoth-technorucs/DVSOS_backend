@@ -748,6 +748,16 @@ const submitExit = async (id, payload, user) => {
       });
     }
 
+    const unpaidJobCards = linkedJobCards.filter(
+      (jc) => jc.currentStatus?.statusCode !== 'PAYMENT_DONE' && jc.currentStatus?.statusCode !== 'DELIVERED'
+    );
+
+    if (currentEntry.entryType !== 'ENQUIRY' && linkedJobCards.length > 0 && unpaidJobCards.length > 0) {
+      throw createHttpError(403, 'Payment not completed. Vehicle cannot exit until payment is processed by cashier.', {
+        jobCards: unpaidJobCards.map((jc) => ({ jobCardId: jc.id, jobCardNo: jc.jobCardNo }))
+      });
+    }
+
     const deliveredStatusId = linkedJobCards.length > 0
       ? await resolveStatusIdFromCodes(tx, STATUS_MODULE_CODES.JOB_CARD_STATUS, DELIVERED_JOB_CARD_STATUS_CODES)
       : null;

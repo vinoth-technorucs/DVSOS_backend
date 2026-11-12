@@ -102,6 +102,15 @@ const MENU_SEED_DATA = [
       { name: 'User Management', path: '/users', icon: 'Users' },
       { name: 'Audit Logs', path: '/audit-logs', icon: 'FileText' }
     ]
+  },
+  {
+    module: 'cashier',
+    menus: [
+      { name: 'Cashier Dashboard', path: '/cashier-dashboard', icon: 'LayoutDashboard' },
+      { name: 'Pending Payments', path: '/cashier/pending-payments', icon: 'CreditCard' },
+      { name: 'Payment History', path: '/cashier/payment-history', icon: 'History' },
+      { name: 'Notifications', path: '/notifications', icon: 'Bell' }
+    ]
   }
 ];
 // can remove later
@@ -138,9 +147,17 @@ const seedMenus = async (prisma) => {
   }
 
   for (const moduleMenu of MENU_SEED_DATA) {
-    const role = await prisma.role.findUnique({
+    let role = await prisma.role.findUnique({
       where: { slug: moduleMenu.module }
     });
+
+    if (!role && moduleMenu.module === 'cashier') {
+      role = await prisma.role.upsert({
+        where: { slug: 'cashier' },
+        update: { name: 'Cashier', description: 'Cashier handling vehicle checkout and payments', isActive: true },
+        create: { name: 'Cashier', slug: 'cashier', description: 'Cashier handling vehicle checkout and payments', isActive: true }
+      });
+    }
 
     for (const [index, menu] of moduleMenu.menus.entries()) {
       const parent = await prisma.menu.upsert({

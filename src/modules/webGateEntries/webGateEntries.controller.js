@@ -49,4 +49,16 @@ const getBySlug = async (req, res, next) => {
   }
 };
 
-module.exports = { list, getBySlug };
+const submitExit = async (req, res, next) => {
+  try {
+    const data = await service.submitExit(req.params.id, req.body, req.user);
+    return apiResponse(res, {
+      message: 'Vehicle exit recorded successfully',
+      data
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { list, getBySlug, submitExit };

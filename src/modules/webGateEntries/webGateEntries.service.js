@@ -78,29 +78,76 @@ const list = async (query, user) => {
             fullName: true,
             emailId: true
           }
+        },
+        jobCards: {
+          select: {
+            id: true,
+            jobCardNo: true,
+            currentStatus: {
+              select: {
+                statusCode: true,
+                statusName: true
+              }
+            }
+          }
         }
       }
     }),
     prisma.gateEntry.count({ where })
   ]);
 
-  const formattedEntries = entries.map(entry => ({
-    id: entry.id.toString(),
-    slug: entry.slug,
-    vehicleNumber: entry.vehicle?.registrationNo || '',
-    ownerName: entry.customer?.fullName || '',
-    mobile: entry.customer?.mobileNo || '',
-    makeModel: entry.vehicle?.model ? `${entry.vehicle?.brand?.name || ''} ${entry.vehicle?.model}`.trim() : (entry.vehicle?.brand?.name || 'Unknown'),
-    serviceType: entry.entryType,
-    status: entry.status?.statusCode || 'PENDING',
-    entryTime: entry.entryTime,
-    entryBy: entry.enteredBy?.fullName || 'System',
-    assignedAdvisor: entry.assignedAdvisor ? {
-      id: entry.assignedAdvisor.id,
-      fullName: entry.assignedAdvisor.fullName
-    } : null,
-    assignedAdvisorName: entry.assignedAdvisor?.fullName || 'Unassigned'
-  }));
+  const formattedEntries = entries.map(entry => {
+    const isExited = entry.status?.statusCode === 'EXITED' || entry.status?.statusCode === 'CLOSED' || Boolean(entry.exitTime);
+    const linkedJobCards = entry.jobCards || [];
+    const hasJobCards = linkedJobCards.length > 0;
+    const isEnquiry = entry.entryType === 'ENQUIRY';
+
+    let paymentStatus = 'N/A';
+    let canExit = true;
+
+    if (isExited) {
+      canExit = false;
+    } else if (isEnquiry) {
+      paymentStatus = 'N/A';
+      canExit = true;
+    } else if (hasJobCards) {
+      const allPaid = linkedJobCards.every(
+        (jc) => jc.currentStatus?.statusCode === 'PAYMENT_DONE' || jc.currentStatus?.statusCode === 'DELIVERED'
+      );
+      paymentStatus = allPaid ? 'PAYMENT_DONE' : 'PAYMENT_PENDING';
+      canExit = allPaid;
+    } else {
+      paymentStatus = 'PAYMENT_PENDING';
+      canExit = false;
+    }
+
+    return {
+      id: entry.id.toString(),
+      slug: entry.slug,
+      vehicleNumber: entry.vehicle?.registrationNo || '',
+      ownerName: entry.customer?.fullName || '',
+      mobile: entry.customer?.mobileNo || '',
+      makeModel: entry.vehicle?.model ? `${entry.vehicle?.brand?.name || ''} ${entry.vehicle?.model}`.trim() : (entry.vehicle?.brand?.name || 'Unknown'),
+      serviceType: entry.entryType,
+      status: entry.status?.statusCode || 'PENDING',
+      entryTime: entry.entryTime,
+      exitTime: entry.exitTime,
+      entryBy: entry.enteredBy?.fullName || 'System',
+      assignedAdvisor: entry.assignedAdvisor ? {
+        id: entry.assignedAdvisor.id,
+        fullName: entry.assignedAdvisor.fullName
+      } : null,
+      assignedAdvisorName: entry.assignedAdvisor?.fullName || 'Unassigned',
+      jobCards: linkedJobCards.map((jc) => ({
+        id: jc.id,
+        jobCardNo: jc.jobCardNo,
+        status: jc.currentStatus?.statusCode || null,
+        statusName: jc.currentStatus?.statusName || null,
+      })),
+      paymentStatus,
+      canExit
+    };
+  });
 
   return {
     entries: formattedEntries,
@@ -127,11 +174,47 @@ const getBySlug = async (slugOrId, user) => {
       customer: true,
       status: true,
       enteredBy: true,
-      location: true
+      location: true,
+      jobCards: {
+        select: {
+          id: true,
+          jobCardNo: true,
+          currentStatus: {
+            select: {
+              statusCode: true,
+              statusName: true
+            }
+          }
+        }
+      }
     }
   });
 
   if (!entry) throw new Error('Gate entry not found');
+
+  const isExited = entry.status?.statusCode === 'EXITED' || entry.status?.statusCode === 'CLOSED' || Boolean(entry.exitTime);
+  const linkedJobCards = entry.jobCards || [];
+  const hasJobCards = linkedJobCards.length > 0;
+  const isEnquiry = entry.entryType === 'ENQUIRY';
+
+  let paymentStatus = 'N/A';
+  let canExit = true;
+
+  if (isExited) {
+    canExit = false;
+  } else if (isEnquiry) {
+    paymentStatus = 'N/A';
+    canExit = true;
+  } else if (hasJobCards) {
+    const allPaid = linkedJobCards.every(
+      (jc) => jc.currentStatus?.statusCode === 'PAYMENT_DONE' || jc.currentStatus?.statusCode === 'DELIVERED'
+    );
+    paymentStatus = allPaid ? 'PAYMENT_DONE' : 'PAYMENT_PENDING';
+    canExit = allPaid;
+  } else {
+    paymentStatus = 'PAYMENT_PENDING';
+    canExit = false;
+  }
 
   return {
     id: entry.id.toString(),
@@ -145,8 +228,22 @@ const getBySlug = async (slugOrId, user) => {
     entryTime: entry.entryTime,
     exitTime: entry.exitTime,
     entryBy: entry.enteredBy?.fullName || 'System',
-    remarks: entry.remarks
+    remarks: entry.remarks,
+    jobCards: linkedJobCards.map((jc) => ({
+      id: jc.id,
+      jobCardNo: jc.jobCardNo,
+      status: jc.currentStatus?.statusCode || null,
+      statusName: jc.currentStatus?.statusName || null,
+    })),
+    paymentStatus,
+    canExit
   };
 };
 
-module.exports = { list, getBySlug };
+const mobileGateEntryService = require('../mobileGateEntry/mobileGateEntry.service');
+
+const submitExit = async (gateEntryId, payload, user) => {
+  return mobileGateEntryService.submitExit(Number(gateEntryId), payload, user);
+};
+
+module.exports = { list, getBySlug, submitExit };
