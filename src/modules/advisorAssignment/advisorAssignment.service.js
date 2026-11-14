@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { getSocket } = require('../../config/socket');
+const { runFcmSenderWorkflow } = require('../../jobs/fcm-sender.job');
 
 const ADVISOR_ROLE_SLUGS = ['crm-team', 'crm_team', 'advisor', 'service-advisor', 'service_advisor'];
 
@@ -140,12 +141,13 @@ const notifyAssignment = async ({ advisor, gateEntry, registrationNumber, locati
           title: 'Vehicle Assigned to You',
           message: `Vehicle ${registrationNumber} (Entry #${gateEntry.gateEntryNo}) has been assigned to you.`,
           type: 'ADVISOR_ASSIGNED',
-          sentAt: new Date()
+          sentAt: null,
+          retryCount: 0
         }
       });
 
       if (io) {
-        io.to(`user:${advisor.id}`).emit('new-notification', {
+        const notifPayload = {
           id: notification.id,
           title: notification.title,
           message: notification.message,
@@ -153,7 +155,9 @@ const notifyAssignment = async ({ advisor, gateEntry, registrationNumber, locati
           gateEntryNo: gateEntry.gateEntryNo,
           registrationNumber,
           createdAt: notification.createdAt
-        });
+        };
+        io.to(`user:${advisor.id}`).emit('new-notification', notifPayload);
+        io.to(`user:${advisor.id}`).emit('notification-created', notifPayload);
         io.to(`location:${numLocationId}`).emit('gate-entry-assigned', {
           gateEntryId: gateEntry.id,
           gateEntryNo: gateEntry.gateEntryNo,
@@ -164,7 +168,6 @@ const notifyAssignment = async ({ advisor, gateEntry, registrationNumber, locati
         });
       }
     } else {
-      // Alert managers that no advisor is logged in
       const managers = await prisma.user.findMany({
         where: {
           locationId: numLocationId,
@@ -187,12 +190,13 @@ const notifyAssignment = async ({ advisor, gateEntry, registrationNumber, locati
             title: 'Unassigned Gate Entry - No Advisor Logged In',
             message: `Vehicle ${registrationNumber} entered the gate, but no Advisor has logged in today at this location.`,
             type: 'ADVISOR_UNASSIGNED_ALERT',
-            sentAt: new Date()
+            sentAt: null,
+            retryCount: 0
           }
         });
 
         if (io) {
-          io.to(`user:${manager.id}`).emit('new-notification', {
+          const notifPayload = {
             id: notification.id,
             title: notification.title,
             message: notification.message,
@@ -200,10 +204,16 @@ const notifyAssignment = async ({ advisor, gateEntry, registrationNumber, locati
             gateEntryNo: gateEntry.gateEntryNo,
             registrationNumber,
             createdAt: notification.createdAt
-          });
+          };
+          io.to(`user:${manager.id}`).emit('new-notification', notifPayload);
+          io.to(`user:${manager.id}`).emit('notification-created', notifPayload);
         }
       }
     }
+
+    runFcmSenderWorkflow().catch((fcmErr) => {
+      console.warn('Immediate FCM dispatch warning:', fcmErr?.message);
+    });
   } catch (error) {
     console.warn('Failed to send assignment notification:', error?.message);
   }

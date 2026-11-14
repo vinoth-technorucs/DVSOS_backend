@@ -162,13 +162,15 @@ async function runJobCardDeliveryMonitorWorkflow() {
             const io = getSocket();
             if (io) {
               recipients.forEach((userId) => {
-                io.to(`user:${userId}`).emit('notification-created', {
+                const payload = {
                   title: title,
                   message: message,
                   type: 'DELIVERY_DELAY_ALERT',
                   jobCardId: jobCard.id,
                   jobCardSlug: jobCard.slug || null
-                });
+                };
+                io.to(`user:${userId}`).emit('notification-created', payload);
+                io.to(`user:${userId}`).emit('new-notification', payload);
               });
             }
 

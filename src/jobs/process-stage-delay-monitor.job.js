@@ -259,7 +259,7 @@ async function runProcessStageDelayMonitorWorkflow() {
 
           if (io) {
             recipients.forEach((userId) => {
-              io.to(`user:${userId}`).emit('notification-created', {
+              const payload = {
                 title: notification.title,
                 message: notification.message,
                 type: 'DELAY_ALERT',
@@ -269,7 +269,9 @@ async function runProcessStageDelayMonitorWorkflow() {
                 vehicleReg: stage.vehicle?.registrationNo || null,
                 processStageTrackingId: stage.id,
                 statusCode: stage.status?.statusCode
-              });
+              };
+              io.to(`user:${userId}`).emit('notification-created', payload);
+              io.to(`user:${userId}`).emit('new-notification', payload);
             });
           }
         } else {

@@ -21,6 +21,45 @@ const initializeSocket = (httpServer) => {
       }
     });
 
+    socket.on('join_location_room', (locationId) => {
+      if (locationId) {
+        socket.join(`location:${locationId}`);
+        console.info(`[Socket] Joined room location:${locationId} (socket: ${socket.id})`);
+      }
+    });
+
+    socket.on('joinRoom', (room) => {
+      if (room) {
+        socket.join(room);
+        if (typeof room === 'string') {
+          if (room.startsWith('location_')) {
+            const locId = room.replace('location_', '');
+            socket.join(`location:${locId}`);
+          } else if (room.startsWith('role_')) {
+            const role = room.replace('role_', '');
+            socket.join(`role:${role}`);
+          }
+        }
+      }
+    });
+
+    socket.on('join', (data) => {
+      if (!data) return;
+      if (typeof data === 'string') {
+        socket.join(data);
+        return;
+      }
+      if (data.userId) {
+        socket.join(`user:${data.userId}`);
+      }
+      if (data.locationId) {
+        socket.join(`location:${data.locationId}`);
+      }
+      if (data.role) {
+        socket.join(`role:${data.role}`);
+      }
+    });
+
     socket.on('join_chat_room', (jobCardId) => {
       if (jobCardId) {
         socket.join(`chat:job_card_${jobCardId}`);
