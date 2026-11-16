@@ -717,6 +717,11 @@ const getBodyShopDashboard = async ({ locationId } = {}) => {
 };
 
 const getTvKioskDashboard = async ({ locationId } = {}) => {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
   const dateFilter = {};
   if (locationId) {
     dateFilter.locationId = locationId;
@@ -729,6 +734,7 @@ const getTvKioskDashboard = async ({ locationId } = {}) => {
         statusCode: {
           notIn: [
             'DELIVERED',
+            'PAYMENT_DONE',
             'GATE_ENTRY_CREATED',
             'JOB_CARD_PENDING',
             'JOB_CARD_CREATED',
@@ -755,7 +761,7 @@ const getTvKioskDashboard = async ({ locationId } = {}) => {
     const statusCode = jc.currentStatus?.statusCode || '';
 
     let column = 'MECHANICAL';
-    if (statusCode === 'READY_FOR_DELIVERY' || statusCode.includes('DELIVERY')) {
+    if (statusCode === 'PAYMENT_PENDING' || statusCode === 'READY_FOR_DELIVERY' || statusCode.includes('DELIVERY')) {
       column = 'READY_FOR_DELIVERY';
     } else if (statusCode.includes('WATER_WASH')) {
       column = 'WATER_WASH';
@@ -764,7 +770,6 @@ const getTvKioskDashboard = async ({ locationId } = {}) => {
     } else if (statusCode.includes('MECHANICAL')) {
       column = 'MECHANICAL';
     } else {
-      // Fallback
       column = 'MECHANICAL';
     }
 
@@ -782,15 +787,12 @@ const getTvKioskDashboard = async ({ locationId } = {}) => {
       waitMinutes,
       updatedAt: jc.updatedAt
     };
+  }).filter(item => {
+    if (item.column === 'READY_FOR_DELIVERY') {
+      return new Date(item.updatedAt) >= todayStart;
+    }
+    return true;
   });
-
-  // ── Vehicles delivered today ──────────────────────────────────────────────
-  // A vehicle is "delivered today" when its gate entry exitTime falls within
-  // today's date range AND the linked job card's currentStatus is DELIVERED.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
 
   const exitedEntries = await prisma.gateEntry.findMany({
     where: {

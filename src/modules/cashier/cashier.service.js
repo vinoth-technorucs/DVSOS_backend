@@ -1,6 +1,7 @@
 const cashierRepository = require('./cashier.repository');
 const { resolveOrEnsureStatus } = require('../../common/utils/status.util');
 const { STATUS_MODULE_CODES } = require('../../common/constants/status.constants');
+const { getSocket } = require('../../config/socket');
 const prisma = require('../../config/db');
 
 const VALID_PAYMENT_MODES = ['CASH', 'CARD', 'UPI', 'ONLINE'];
@@ -68,6 +69,13 @@ const processPayment = async (jobCardId, payload, user) => {
   const finalAmount = paidAmount !== undefined ? Number(paidAmount) : Number(jobCard.finalAmount || jobCard.totalEstimate || 0);
 
   const updated = await cashierRepository.markJobCardPaid(jobCardId, paymentDoneStatus.id, paymentMode, finalAmount);
+
+  const io = getSocket();
+  if (io) {
+    io.emit('jobCardStatusChanged', { jobCardId, newStatus: 'PAYMENT_DONE' });
+    io.emit('jobCardQueueUpdate', { locationId: updated.locationId });
+    io.to(`location_${updated.locationId}`).emit('queueUpdate', { jobCardId, status: 'PAYMENT_DONE' });
+  }
 
   return formatJobCard(updated);
 };
