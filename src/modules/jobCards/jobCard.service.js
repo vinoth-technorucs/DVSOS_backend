@@ -952,9 +952,13 @@ const toJobCardListResponse = (jobCard, department, bayMap = new Map()) => {
   );
   const assignedBay = assignedBays[0] || null;
   const workType = computeWorkType(jobCard);
+  const advisor = jobCard.gateEntry?.assignedAdvisor || jobCard.createdBy || null;
+  const advisorName = advisor ? advisor.fullName : null;
 
   return {
     ...jobCard,
+    advisor,
+    advisorName,
     workType,
     workAssignments: activeAssignments,
     activeAssignments,
@@ -1003,7 +1007,9 @@ const listJobCards = async (query, user) => {
       { jobCardNo: { contains: query.search } },
       { vehicle: { registrationNo: { contains: query.search } } },
       { customer: { fullName: { contains: query.search } } },
-      { customer: { mobileNo: { contains: query.search } } }
+      { customer: { mobileNo: { contains: query.search } } },
+      { gateEntry: { assignedAdvisor: { fullName: { contains: query.search } } } },
+      { createdBy: { fullName: { contains: query.search } } }
     ];
 
     if (matchingBayIds.length > 0) {
@@ -1262,7 +1268,16 @@ const listJobCards = async (query, user) => {
           select: { id: true, locationName: true, locationCode: true }
         },
         gateEntry: {
-          select: { id: true, entryTime: true }
+          select: {
+            id: true,
+            entryTime: true,
+            assignedAdvisor: {
+              select: { id: true, fullName: true, employeeCode: true, emailId: true }
+            }
+          }
+        },
+        createdBy: {
+          select: { id: true, fullName: true, employeeCode: true, emailId: true }
         },
         approvals: {
           select: {
@@ -1467,7 +1482,18 @@ const JOB_CARD_INCLUDE = {
     select: { id: true, locationName: true, locationCode: true }
   },
   gateEntry: {
-    select: { id: true, entryType: true, gateEntryNo: true, entryTime: true }
+    select: {
+      id: true,
+      entryType: true,
+      gateEntryNo: true,
+      entryTime: true,
+      assignedAdvisor: {
+        select: { id: true, fullName: true, employeeCode: true, emailId: true, mobileNo: true }
+      }
+    }
+  },
+  createdBy: {
+    select: { id: true, fullName: true, employeeCode: true, emailId: true, mobileNo: true }
   },
   services: {
     include: {

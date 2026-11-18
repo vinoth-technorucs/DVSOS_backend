@@ -309,6 +309,152 @@ const getMdDashboard = async ({ timeframe = 'today', locationId } = {}) => {
     amount: revenueMap[key]
   }));
 
+  const activeJobCards = await prisma.jobCard.findMany({
+    where: {
+      ...(locationId ? { locationId } : {}),
+      OR: [
+        {
+          currentStatus: {
+            isFinal: false,
+            statusCode: { notIn: ['CANCELLED', 'DELIVERED'] }
+          }
+        },
+        {
+          updatedAt: { gte: startDate, lt: endDate },
+          currentStatus: { statusCode: { in: ['DELIVERED', 'READY_FOR_DELIVERY', 'WORK_COMPLETED'] } }
+        }
+      ]
+    },
+    select: {
+      id: true,
+      currentStatus: {
+        select: { statusCode: true, isFinal: true }
+      }
+    }
+  });
+
+  const pendingGateEntriesCount = await prisma.gateEntry.count({
+    where: {
+      ...(locationId ? { locationId } : {}),
+      jobCards: { none: {} },
+      exitTime: null
+    }
+  });
+
+  let gatePendingCount = pendingGateEntriesCount;
+  let mechActive = 0;
+  let mechWaiting = 0;
+  let bodyActive = 0;
+  let bodyWaiting = 0;
+  let completedPipelineCount = 0;
+
+  activeJobCards.forEach(jc => {
+    const statusCode = String(jc.currentStatus?.statusCode || '').toUpperCase();
+    if (statusCode === 'GATE_ENTRY_CREATED' || statusCode === 'JOB_CARD_PENDING' || statusCode.includes('PENDING')) {
+      gatePendingCount++;
+    } else if (statusCode.includes('MECHANICAL')) {
+      if (statusCode.includes('IN_PROGRESS')) mechActive++;
+      else mechWaiting++;
+    } else if (statusCode.includes('BODY_SHOP')) {
+      if (statusCode.includes('IN_PROGRESS')) bodyActive++;
+      else bodyWaiting++;
+    } else if (statusCode.includes('COMPLETED') || statusCode.includes('READY') || statusCode === 'DELIVERED') {
+      completedPipelineCount++;
+    }
+  });
+
+  const pipeline = [
+    { label: 'Gate / JC Pending', value: gatePendingCount, meta: 'Awaiting job card', color: '#D97706', bg: '#FFF7ED' },
+    { label: 'Mechanical', value: mechActive + mechWaiting, meta: `${mechActive} active - ${mechWaiting} waiting`, color: '#2563EB', bg: '#EFF6FF' },
+    { label: 'Body Shop', value: bodyActive + bodyWaiting, meta: `${bodyActive} active - ${bodyWaiting} waiting`, color: '#7C3AED', bg: '#F5F3FF' },
+    { label: 'Completed', value: completedPipelineCount, meta: 'Ready for delivery', color: '#059669', bg: '#ECFDF5' }
+  ];
+
+  const advisorUsers = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      role: {
+        slug: { in: ['service-advisor', 'advisor', 'crm-team', 'crm_team'] }
+      },
+      ...(locationId ? { locationId } : {})
+    },
+    select: { id: true, fullName: true, employeeCode: true }
+  });
+
+  const advisorMap = new Map();
+  advisorUsers.forEach(u => {
+    advisorMap.set(u.id, {
+      advisorId: u.id,
+      advisorName: u.fullName,
+      employeeCode: u.employeeCode || '-',
+      totalJobCards: 0,
+      inProgress: 0,
+      completed: 0,
+      waiting: 0,
+      totalRevenue: 0
+    });
+  });
+
+  const jobCardsForAdvisors = await prisma.jobCard.findMany({
+    where: dateFilter,
+    select: {
+      id: true,
+      finalAmount: true,
+      totalEstimate: true,
+      currentStatus: {
+        select: { statusCode: true, isFinal: true }
+      },
+      gateEntry: {
+        select: {
+          assignedAdvisor: {
+            select: { id: true, fullName: true, employeeCode: true }
+          }
+        }
+      },
+      createdBy: {
+        select: { id: true, fullName: true, employeeCode: true }
+      }
+    }
+  });
+
+  jobCardsForAdvisors.forEach(jc => {
+    const advisor = jc.gateEntry?.assignedAdvisor || jc.createdBy;
+    if (!advisor) return;
+
+    if (!advisorMap.has(advisor.id)) {
+      advisorMap.set(advisor.id, {
+        advisorId: advisor.id,
+        advisorName: advisor.fullName,
+        employeeCode: advisor.employeeCode || '-',
+        totalJobCards: 0,
+        inProgress: 0,
+        completed: 0,
+        waiting: 0,
+        totalRevenue: 0
+      });
+    }
+
+    const item = advisorMap.get(advisor.id);
+    item.totalJobCards++;
+
+    const statusCode = String(jc.currentStatus?.statusCode || '').toUpperCase();
+    const isFinal = Boolean(jc.currentStatus?.isFinal);
+
+    if (isFinal || statusCode.includes('COMPLETED') || statusCode.includes('DELIVERED') || statusCode.includes('READY')) {
+      item.completed++;
+    } else if (statusCode.includes('IN_PROGRESS')) {
+      item.inProgress++;
+    } else {
+      item.waiting++;
+    }
+
+    item.totalRevenue += Number(jc.finalAmount || jc.totalEstimate || 0);
+  });
+
+  const advisorPerformance = Array.from(advisorMap.values()).sort(
+    (a, b) => b.totalJobCards - a.totalJobCards || a.advisorName.localeCompare(b.advisorName)
+  );
+
   return {
     kpis: {
       totalVehicles: { value: totalVehicles, comparison: '+3 vs yesterday' },
@@ -316,6 +462,8 @@ const getMdDashboard = async ({ timeframe = 'today', locationId } = {}) => {
       totalRevenue: { value: totalRevenue, comparison: '+12% vs avg' },
       totalUsers: { value: totalUsers, comparison: 'Manage platform users' }
     },
+    pipeline,
+    advisorPerformance,
     dailyThroughput,
     statusMix,
     departmentPerformance,
